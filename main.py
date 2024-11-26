@@ -297,7 +297,7 @@ class TeamsHelperRecorder:
     
     def start_mouse_jiggler(self):
         """
-        Start the Mouse Jiggler in a separate thread and prevent sleep using wakepy.
+        Start the Mouse Jiggler in a separate thread and prevent sleep and screen off.
         """
         def jiggler():
             try:
@@ -305,8 +305,8 @@ class TeamsHelperRecorder:
                 last_position = pyautogui.position()  # Store the last position of the mouse
                 last_manual_move_time = time.time()  # Timestamp of the last detected manual move
 
-                # Prevent system sleep while the jiggler is active
-                with wakepy.keep.presenting():
+                # Use wakepy to prevent sleep and screen off
+                with keep.presenting():
                     while self.keep_available:
                         current_position = pyautogui.position()
 
