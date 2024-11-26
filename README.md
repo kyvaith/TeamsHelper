@@ -10,6 +10,7 @@ The **Microsoft Teams Helper App** is a desktop application that integrates with
 - **Lightweight Integration**: Uses the local Teams client API to avoid additional permissions or configurations.
 - **Logs**: Logs are saved in the recording folder for troubleshooting.
 - **Mouse Jiggler**: Enable the "Keep Available Status" option in the application's context menu to maintain a green status in Teams.
+- **Autostart with Windows**: Start app on log in.
 
 ---
 

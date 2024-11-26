@@ -16,7 +16,7 @@ import signal
 import json
 import time
 from datetime import datetime
-from tkinter import Tk, messagebox, filedialog, StringVar, Label, Entry, Button
+from tkinter import Tk, messagebox, filedialog, StringVar, BooleanVar, Checkbutton, Label, Entry, Button
 
 import numpy as np
 import sounddevice as sd
@@ -26,8 +26,8 @@ from PIL import Image
 from websocket import create_connection, WebSocketConnectionClosedException
 import configparser
 import pyautogui
+import winreg
 
-                                  
 class TeamsHelperRecorder:
     """
     Main recorder class for Teams Helper.
@@ -44,7 +44,8 @@ class TeamsHelperRecorder:
         self.can_toggle_mute = False
         self.record_all_meetings = True  # Default to True
         self.keep_available = False  # State for Mouse Jiggler
-        self.jiggler_thread = None  # Thread for Mouse Jiggler                                             
+        self.jiggler_thread = None  # Thread for Mouse Jiggler     
+        self.settings_window_ref = None  # Reference to the Settings window        
         
         # Paths and settings
         self.settings_file = os.path.join(os.getenv("APPDATA"), "teamshelper", "settings.ini")
@@ -85,6 +86,64 @@ class TeamsHelperRecorder:
         if self.tray_icon:
             state = "Recording" if self.recording else "Idle"
             self.tray_icon.title = f"Teams Helper - {state}"
+
+    def is_autostart_enabled(self):
+        """
+        Check if the application is set to autostart with Windows.
+        """
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, 
+                r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                0, 
+                winreg.KEY_READ
+            )
+            value, regtype = winreg.QueryValueEx(key, "TeamsHelper")
+            winreg.CloseKey(key)
+            return value == sys.executable
+        except FileNotFoundError:
+            return False
+
+    def enable_autostart(self):
+        """
+        Enable autostart by adding the application to Windows startup registry.
+        """
+        try:
+            # Get the actual path of the running script or executable
+            executable_path = os.path.abspath(sys.argv[0])
+
+            # Add the executable path to the Windows startup registry
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, 
+                r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                0, 
+                winreg.KEY_SET_VALUE
+            )
+            winreg.SetValueEx(key, "TeamsHelper", 0, winreg.REG_SZ, f'"{executable_path}"')
+            winreg.CloseKey(key)
+
+            logging.info("Autostart enabled with executable: %s", executable_path)
+        except Exception as e:
+            logging.error(f"Failed to enable autostart: {e}")
+
+    def disable_autostart(self):
+        """
+        Disable autostart by removing the application from Windows startup registry.
+        """
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER, 
+                r"Software\Microsoft\Windows\CurrentVersion\Run", 
+                0, 
+                winreg.KEY_SET_VALUE
+            )
+            winreg.DeleteValue(key, "TeamsHelper")
+            winreg.CloseKey(key)
+            logging.info("Autostart disabled.")
+        except FileNotFoundError:
+            logging.info("Autostart entry not found, nothing to disable.")
+        except Exception as e:
+            logging.error(f"Failed to disable autostart: {e}")
 
     def load_settings(self):
         """
@@ -138,8 +197,15 @@ class TeamsHelperRecorder:
 
     def show_settings_window(self):
         """
-        Display the settings window for changing the output directory.
+        Display the settings window for changing the output directory and autostart setting.
+        If the window is already open, bring it to the front.
         """
+        if self.settings_window_ref is not None and self.settings_window_ref.winfo_exists():
+            # If the window already exists, bring it to the front
+            self.settings_window_ref.lift()
+            self.settings_window_ref.focus_force()
+            return
+
         def settings_window():
             def browse_folder():
                 """
@@ -157,26 +223,50 @@ class TeamsHelperRecorder:
                 if os.path.isdir(selected_folder):
                     self.save_settings(selected_folder)
                     messagebox.showinfo("Settings", f"Folder changed to: {selected_folder}")
-                    root.destroy()
                 else:
                     messagebox.showerror("Error", "The selected folder does not exist. Please select a valid folder.")
 
+            def toggle_autostart():
+                """
+                Toggle the autostart functionality.
+                """
+                if autostart_var.get():
+                    self.enable_autostart()
+                    messagebox.showinfo("Autostart", "Autostart has been enabled.")
+                else:
+                    self.disable_autostart()
+                    messagebox.showinfo("Autostart", "Autostart has been disabled.")
+
             # Create the settings window
-            root = Tk()
-            root.title("Settings")
-            root.geometry("500x150")
-            root.iconbitmap(self.get_icon_path())
+            self.settings_window_ref = Tk()
+            self.settings_window_ref.title("Settings")
+            self.settings_window_ref.geometry("500x200")
+            self.settings_window_ref.iconbitmap(self.get_icon_path())
+
+            # Handle window close event
+            def on_close():
+                """
+                Handle the Settings window close event.
+                """
+                self.settings_window_ref.destroy()  # Destroy the window
+                self.settings_window_ref = None  # Reset the reference
+
+            self.settings_window_ref.protocol("WM_DELETE_WINDOW", on_close)
 
             # Current folder label and entry
             folder_var = StringVar(value=self.output_dir)
-            Label(root, text="Current Recording Folder:", anchor="w").pack(fill="x", padx=10, pady=5)
-            Entry(root, textvariable=folder_var, state="readonly", width=60).pack(fill="x", padx=10, pady=5)
+            Label(self.settings_window_ref, text="Current Recording Folder:", anchor="w").pack(fill="x", padx=10, pady=5)
+            Entry(self.settings_window_ref, textvariable=folder_var, state="readonly", width=60).pack(fill="x", padx=10, pady=5)
 
-            # Buttons
-            Button(root, text="Browse...", command=browse_folder).pack(side="left", padx=10, pady=10)
-            Button(root, text="Save", command=save_settings).pack(side="right", padx=10, pady=10)
+            # Buttons for folder selection
+            Button(self.settings_window_ref, text="Browse...", command=browse_folder).pack(side="left", padx=10, pady=10)
+            Button(self.settings_window_ref, text="Save", command=save_settings).pack(side="right", padx=10, pady=10)
 
-            root.mainloop()
+            # Autostart checkbox
+            autostart_var = BooleanVar(value=self.is_autostart_enabled())
+            Checkbutton(self.settings_window_ref, text="Autostart with Windows", variable=autostart_var, command=toggle_autostart).pack(anchor="w", padx=10, pady=10)
+
+            self.settings_window_ref.mainloop()
 
         threading.Thread(target=settings_window, daemon=True).start()
 
