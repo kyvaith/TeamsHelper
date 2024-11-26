@@ -27,6 +27,7 @@ from websocket import create_connection, WebSocketConnectionClosedException
 import configparser
 import pyautogui
 import winreg
+import wakepy
 
 class TeamsHelperRecorder:
     """
@@ -296,21 +297,34 @@ class TeamsHelperRecorder:
     
     def start_mouse_jiggler(self):
         """
-        Start the Mouse Jiggler in a separate thread.
+        Start the Mouse Jiggler in a separate thread and prevent sleep using wakepy.
         """
         def jiggler():
             try:
                 screen_width, screen_height = pyautogui.size()
-                while self.keep_available:
-                    current_position = pyautogui.position()
+                last_position = pyautogui.position()  # Store the last position of the mouse
+                last_manual_move_time = time.time()  # Timestamp of the last detected manual move
 
-                    # Ensure the cursor doesn't move out of bounds
-                    next_x = min(current_position[0] + 1, screen_width - 2)
-                    next_y = min(current_position[1], screen_height - 2)
+                # Prevent system sleep while the jiggler is active
+                with wakepy.keep.presenting():
+                    while self.keep_available:
+                        current_position = pyautogui.position()
 
-                    pyautogui.moveTo(next_x, next_y)
-                    pyautogui.moveTo(current_position[0], current_position[1])
-                    time.sleep(10)  # Move every 10 seconds
+                        # Detect manual mouse movement
+                        if current_position != last_position:
+                            last_manual_move_time = time.time()
+                            last_position = current_position
+
+                        # Check if 10 seconds have passed since the last manual move
+                        if time.time() - last_manual_move_time > 10:
+                            # Ensure the cursor doesn't move out of bounds
+                            next_x = min(current_position[0] + 1, screen_width - 2)
+                            next_y = min(current_position[1], screen_height - 2)
+
+                            pyautogui.moveTo(next_x, next_y)
+                            pyautogui.moveTo(current_position[0], current_position[1])
+
+                        time.sleep(1)  # Check every second
             except pyautogui.FailSafeException:
                 logging.warning("Mouse Jiggler stopped due to fail-safe being triggered.")
                 self.keep_available = False
