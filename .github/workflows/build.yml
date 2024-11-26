@@ -1,0 +1,71 @@
+name: Build and Release Teams Helper
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+
+    - name: Install Dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build Executable
+      run: |
+        pyinstaller --clean --onefile --noconsole --icon=icon.ico --add-data "icon.ico;." --name TeamsHelper main.py
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: TeamsHelper-Executable
+        path: dist/TeamsHelper.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download Built Executable
+      uses: actions/download-artifact@v4
+      with:
+        name: TeamsHelper-Executable
+        path: dist
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: Teams Helper ${{ github.ref_name }}
+        body: |
+          This release includes the latest version of Teams Helper.
+        draft: false
+        prerelease: false
+
+    - name: Upload to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: dist/TeamsHelper.exe
+        asset_name: TeamsHelper-${{ github.ref_name }}.exe
+        asset_content_type: application/octet-stream
