@@ -27,7 +27,7 @@ from websocket import create_connection, WebSocketConnectionClosedException
 import configparser
 import pyautogui
 import winreg
-import wakepy
+from wakepy import keep
 
 class TeamsHelperRecorder:
     """
