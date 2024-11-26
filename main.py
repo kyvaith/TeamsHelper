@@ -27,7 +27,7 @@ from websocket import create_connection, WebSocketConnectionClosedException
 import configparser
 import pyautogui
 import winreg
-from wakepy import keep
+import ctypes
 
 class TeamsHelperRecorder:
     """
@@ -297,37 +297,45 @@ class TeamsHelperRecorder:
     
     def start_mouse_jiggler(self):
         """
-        Start the Mouse Jiggler in a separate thread and prevent sleep and screen off.
+        Start the Mouse Jiggler in a separate thread using Windows API (SendInput).
         """
         def jiggler():
+            INPUT_MOUSE = 0
+            MOUSEEVENTF_MOVE = 0x0001
+
+            class MOUSEINPUT(ctypes.Structure):
+                _fields_ = [
+                    ("dx", ctypes.c_long),
+                    ("dy", ctypes.c_long),
+                    ("mouseData", ctypes.c_ulong),
+                    ("dwFlags", ctypes.c_ulong),
+                    ("time", ctypes.c_ulong),
+                    ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+                ]
+
+            class INPUT(ctypes.Structure):
+                _fields_ = [
+                    ("type", ctypes.c_ulong),
+                    ("mi", MOUSEINPUT),
+                ]
+
+            def send_input(dx, dy):
+                extra = ctypes.c_ulong(0)
+                input_structure = INPUT(
+                    type=INPUT_MOUSE,
+                    mi=MOUSEINPUT(dx=dx, dy=dy, mouseData=0, dwFlags=MOUSEEVENTF_MOVE, time=0, dwExtraInfo=ctypes.pointer(extra)),
+                )
+                ctypes.windll.user32.SendInput(1, ctypes.pointer(input_structure), ctypes.sizeof(input_structure))
+
             try:
-                screen_width, screen_height = pyautogui.size()
-                last_position = pyautogui.position()  # Store the last position of the mouse
-                last_manual_move_time = time.time()  # Timestamp of the last detected manual move
-
-                # Use wakepy to prevent sleep and screen off
-                with keep.presenting():
-                    while self.keep_available:
-                        current_position = pyautogui.position()
-
-                        # Detect manual mouse movement
-                        if current_position != last_position:
-                            last_manual_move_time = time.time()
-                            last_position = current_position
-
-                        # Check if 10 seconds have passed since the last manual move
-                        if time.time() - last_manual_move_time > 10:
-                            # Ensure the cursor doesn't move out of bounds
-                            next_x = min(current_position[0] + 1, screen_width - 2)
-                            next_y = min(current_position[1], screen_height - 2)
-
-                            pyautogui.moveTo(next_x, next_y)
-                            pyautogui.moveTo(current_position[0], current_position[1])
-
-                        time.sleep(1)  # Check every second
-            except pyautogui.FailSafeException:
-                logging.warning("Mouse Jiggler stopped due to fail-safe being triggered.")
-                self.keep_available = False
+                while self.keep_available:
+                    send_input(1, 0)  # Move slightly right
+                    send_input(-1, 0)  # Move back
+                    time.sleep(60)  # Every 60 seconds
+            except Exception as e:
+                logging.error(f"Mouse Jiggler error: {e}")
+            finally:
+                logging.info("Mouse Jiggler stopped.")
 
         if self.jiggler_thread is None or not self.jiggler_thread.is_alive():
             self.jiggler_thread = threading.Thread(target=jiggler, daemon=True)
