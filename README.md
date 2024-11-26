@@ -8,7 +8,8 @@ The **Microsoft Teams Helper App** is a desktop application that integrates with
 - **Automatic Audio Recording**: Starts recording automatically when the meeting state changes.
 - **Changeable Recording Folder**: Modify the default recording folder through the settings menu.
 - **Lightweight Integration**: Uses the local Teams client API to avoid additional permissions or configurations.
-- **Logs and Recording Management**: Logs are saved in the recording folder for troubleshooting.
+- **Logs**: Logs are saved in the recording folder for troubleshooting.
+- **Mouse Jiggler**: Enable the "Keep Available Status" option in the application's context menu to maintain a green status in Teams.
 
 ---
 

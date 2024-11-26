@@ -1,9 +1,7 @@
-sounddevice
-numpy
 pyinstaller
+sounddevice
 lameenc
 pystray
 pillow
-pywin32
-olefile
 websocket-client
+pyautogui

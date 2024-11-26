@@ -25,8 +25,9 @@ from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from websocket import create_connection, WebSocketConnectionClosedException
 import configparser
+import pyautogui
 
-
+                                  
 class TeamsHelperRecorder:
     """
     Main recorder class for Teams Helper.
@@ -42,7 +43,9 @@ class TeamsHelperRecorder:
         self.ws = None
         self.can_toggle_mute = False
         self.record_all_meetings = True  # Default to True
-
+        self.keep_available = False  # State for Mouse Jiggler
+        self.jiggler_thread = None  # Thread for Mouse Jiggler                                             
+        
         # Paths and settings
         self.settings_file = os.path.join(os.getenv("APPDATA"), "teamshelper", "settings.ini")
         self.output_dir = self.load_settings()
@@ -186,6 +189,56 @@ class TeamsHelperRecorder:
         print(f"[INFO] Record All Meetings is now {state}.")
         logging.info("Record All Meetings toggled to: %s", state)
 
+    def toggle_keep_available(self):
+        """
+        Toggle the Mouse Jiggler functionality.
+													   
+        """
+        self.keep_available = not self.keep_available
+        state = "enabled" if self.keep_available else "disabled"
+        print(f"[INFO] Keep Available Status is now {state}.")
+        logging.info("Keep Available Status toggled to: %s", state)
+
+        if self.keep_available:
+            self.start_mouse_jiggler()
+        else:
+            self.stop_mouse_jiggler()
+    
+    def start_mouse_jiggler(self):
+        """
+        Start the Mouse Jiggler in a separate thread.
+        """
+        def jiggler():
+            try:
+                screen_width, screen_height = pyautogui.size()
+                while self.keep_available:
+                    current_position = pyautogui.position()
+
+                    # Ensure the cursor doesn't move out of bounds
+                    next_x = min(current_position[0] + 1, screen_width - 2)
+                    next_y = min(current_position[1], screen_height - 2)
+
+                    pyautogui.moveTo(next_x, next_y)
+                    pyautogui.moveTo(current_position[0], current_position[1])
+                    time.sleep(10)  # Move every 10 seconds
+            except pyautogui.FailSafeException:
+                logging.warning("Mouse Jiggler stopped due to fail-safe being triggered.")
+                self.keep_available = False
+
+        if self.jiggler_thread is None or not self.jiggler_thread.is_alive():
+            self.jiggler_thread = threading.Thread(target=jiggler, daemon=True)
+            self.jiggler_thread.start()
+
+    def stop_mouse_jiggler(self):				  
+        """
+        Stop the Mouse Jiggler functionality.
+        """
+        self.keep_available = False
+        if self.jiggler_thread:
+            self.jiggler_thread.join()
+								
+            self.jiggler_thread = None
+    
     def connect_to_teams(self):
         """
         Establish a WebSocket connection to the Teams API.
@@ -342,6 +395,11 @@ def create_tray_icon(recorder):
             "Record All Meetings",
             lambda icon, item: recorder.toggle_record_all_meetings(),
             checked=lambda item: recorder.record_all_meetings,
+        ),
+        MenuItem(
+            "Keep Available Status",
+            lambda icon, item: recorder.toggle_keep_available(),
+            checked=lambda item: recorder.keep_available,
         ),
         MenuItem("Settings", lambda icon, item: recorder.show_settings_window()),
         MenuItem("Exit", exit_app),
