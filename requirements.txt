@@ -5,3 +5,4 @@ pystray
 pillow
 websocket-client
 pyautogui
+numpy
