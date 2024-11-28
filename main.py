@@ -473,7 +473,7 @@ class TeamsHelperRecorder:
 
     def stop_recording(self):
         """
-        Stop the audio recording process.
+        Stop the audio recording process and reset the MP3 encoder.
         """
         print("[INFO] Stopping recording...")
         logging.info("Stopping recording...")
@@ -481,6 +481,9 @@ class TeamsHelperRecorder:
         self.update_tray_title()
         if hasattr(self, "recording_thread"):
             self.recording_thread.join()
+    
+        # Reset the encoder to avoid future initialization issues
+        self.encoder = None
 
     def get_device_by_name(self, device_name):
         """
