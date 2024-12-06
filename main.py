@@ -413,12 +413,20 @@ class TeamsHelperRecorder:
 
     def start_recording(self):
         """
-        Start the audio recording process.
+        Start the audio recording process and initialize the MP3 encoder.
         """
         print("[INFO] Starting recording...")
         logging.info("Starting recording...")
         self.recording = True
         self.update_tray_title()
+    
+        # Initialize the MP3 encoder
+        self.encoder = lameenc.Encoder()
+        self.encoder.set_bit_rate(128)
+        self.encoder.set_in_sample_rate(self.sample_rate)
+        self.encoder.set_channels(self.channels)
+        self.encoder.set_quality(2)
+    
         self.recording_thread = threading.Thread(target=self.record_audio)
         self.recording_thread.start()
 
