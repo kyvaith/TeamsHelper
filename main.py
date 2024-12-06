@@ -64,6 +64,12 @@ class TeamsHelperRecorder:
         self.encoder.set_channels(self.channels)
         self.encoder.set_quality(2)
 
+	# Autostart check and update
+        if self.is_autostart_enabled():
+            logging.info("Autostart is enabled and verified.")
+        else:
+            logging.info("Autostart is not enabled.")
+
     def get_icon_path(self):
         """
         Get the path to the `icon.ico` file.
@@ -90,7 +96,7 @@ class TeamsHelperRecorder:
 
     def is_autostart_enabled(self):
         """
-        Check if the application is set to autostart with Windows.
+        Check if the application is set to autostart with Windows and update the entry if necessary.
         """
         try:
             key = winreg.OpenKey(
@@ -101,8 +107,18 @@ class TeamsHelperRecorder:
             )
             value, regtype = winreg.QueryValueEx(key, "TeamsHelper")
             winreg.CloseKey(key)
-            return value == sys.executable
+
+            current_executable_path = f'"{os.path.abspath(sys.argv[0])}"'
+            if value != current_executable_path:
+                # Update the autostart entry with the new path
+                self.enable_autostart()
+                logging.info("Updated autostart path to: %s", current_executable_path)
+
+            return value == current_executable_path
         except FileNotFoundError:
+            return False
+        except Exception as e:
+            logging.error(f"Error checking autostart status: {e}")
             return False
 
     def enable_autostart(self):
